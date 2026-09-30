@@ -58,8 +58,19 @@ public class NotesScreen extends Screen {
 		panelTop = (height - panelHeight) / 2;
 		gridLeft = panelLeft + 15;
 		gridTop = panelTop + 128;
-		rowHeight = Math.max(8, Math.min(22, (panelHeight - 176) / (ROW_COUNT + 1)));
-		cellWidth = Math.max(12, Math.min(56, (panelWidth - 30 - INDEX_WIDTH) / COLUMN_COUNT));
+		int densityBias = NotesSettings.density();
+		int preferredRowHeight = switch (densityBias) {
+			case 0 -> 18;
+			case 2 -> 26;
+			default -> 22;
+		};
+		int preferredCellWidth = switch (densityBias) {
+			case 0 -> 48;
+			case 2 -> 60;
+			default -> 56;
+		};
+		rowHeight = Math.max(8, Math.min(preferredRowHeight, (panelHeight - 176) / (ROW_COUNT + 1)));
+		cellWidth = Math.max(12, Math.min(preferredCellWidth, (panelWidth - 30 - INDEX_WIDTH) / COLUMN_COUNT));
 
 		documentNameField = new EditBox(font, panelLeft + 14, panelTop + 43, panelWidth - 28, 22,
 				NotesFont.apply(Component.translatable("screen.vildoria.notes.document_name")));
@@ -82,79 +93,87 @@ public class NotesScreen extends Screen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-		graphics.fill(panelLeft, panelTop, panelLeft + panelWidth, panelTop + panelHeight, 0xfff0f3f0);
-		graphics.outline(panelLeft, panelTop, panelWidth, panelHeight, 0xff9caea4);
-		graphics.fill(panelLeft, panelTop, panelLeft + panelWidth, panelTop + 36, 0xff176b52);
+		NotesSettings.Palette palette = NotesSettings.palette();
+		graphics.fill(panelLeft, panelTop, panelLeft + panelWidth, panelTop + panelHeight, palette.background());
+		graphics.outline(panelLeft, panelTop, panelWidth, panelHeight, palette.border());
+		graphics.fill(panelLeft, panelTop, panelLeft + panelWidth, panelTop + 36, palette.header());
 		graphics.text(font, NotesFont.apply(title), panelLeft + 15, panelTop + 13, 0xffffffff);
 
-		drawButton(graphics, actionButtonX(0), panelTop + 70, NEW_BUTTON_WIDTH, "screen.vildoria.notes.new");
-		drawButton(graphics, actionButtonX(1), panelTop + 70, OPEN_BUTTON_WIDTH, "screen.vildoria.notes.open");
-		drawButton(graphics, actionButtonX(2), panelTop + 70, SAVE_BUTTON_WIDTH, "screen.vildoria.notes.save");
-		graphics.text(font, NotesFont.literal(selectedCellName()), panelLeft + 15, panelTop + 107, 0xff176b52);
-		drawGrid(graphics);
-		graphics.text(font, NotesFont.apply(status), panelLeft + 14, panelTop + panelHeight - 18, 0xff52645a);
+		drawButton(graphics, actionButtonX(0), panelTop + 70, NEW_BUTTON_WIDTH, "screen.vildoria.notes.new", palette);
+		drawButton(graphics, actionButtonX(1), panelTop + 70, OPEN_BUTTON_WIDTH, "screen.vildoria.notes.open", palette);
+		drawButton(graphics, actionButtonX(2), panelTop + 70, SAVE_BUTTON_WIDTH, "screen.vildoria.notes.save", palette);
+		int mainTextColor = NotesSettings.textColorValue();
+		graphics.text(font, NotesFont.literal(selectedCellName()), panelLeft + 15, panelTop + 107, mainTextColor);
+		drawGrid(graphics, palette);
+		graphics.text(font, NotesFont.apply(status), panelLeft + 14, panelTop + panelHeight - 18, mainTextColor);
 
 		super.extractRenderState(graphics, mouseX, mouseY, delta);
 		if (openDialog) {
-			drawOpenDialog(graphics);
+			drawOpenDialog(graphics, palette);
 		}
 	}
 
-	private void drawGrid(GuiGraphicsExtractor graphics) {
-		graphics.fill(gridLeft, gridTop, gridLeft + INDEX_WIDTH, gridTop + rowHeight, 0xffdce4df);
-		for (int column = 0; column < COLUMN_COUNT; column++) {
-			int x = gridLeft + INDEX_WIDTH + column * cellWidth;
-			graphics.fill(x, gridTop, x + cellWidth, gridTop + rowHeight, 0xffdce4df);
-			graphics.centeredText(font, NotesFont.literal(Character.toString((char) ('A' + column))), x + cellWidth / 2,
-					gridTop + Math.max(1, (rowHeight - 8) / 2), 0xff263a31);
+	private void drawGrid(GuiGraphicsExtractor graphics, NotesSettings.Palette palette) {
+		if (NotesSettings.gridLines()) {
+			graphics.fill(gridLeft, gridTop, gridLeft + INDEX_WIDTH, gridTop + rowHeight, palette.gridHeader());
+			for (int column = 0; column < COLUMN_COUNT; column++) {
+				int x = gridLeft + INDEX_WIDTH + column * cellWidth;
+				graphics.fill(x, gridTop, x + cellWidth, gridTop + rowHeight, palette.gridHeader());
+				graphics.centeredText(font, NotesFont.literal(Character.toString((char) ('A' + column))), x + cellWidth / 2,
+						gridTop + Math.max(1, (rowHeight - 8) / 2), palette.text());
+			}
 		}
 
 		for (int row = 0; row < ROW_COUNT; row++) {
 			int y = gridTop + rowHeight * (row + 1);
-			graphics.fill(gridLeft, y, gridLeft + INDEX_WIDTH, y + rowHeight, 0xffdce4df);
-			graphics.centeredText(font, NotesFont.literal(Integer.toString(row + 1)), gridLeft + INDEX_WIDTH / 2,
-				y + Math.max(1, (rowHeight - 8) / 2), 0xff263a31);
+			if (NotesSettings.gridLines()) {
+				graphics.fill(gridLeft, y, gridLeft + INDEX_WIDTH, y + rowHeight, palette.gridHeader());
+				graphics.centeredText(font, NotesFont.literal(Integer.toString(row + 1)), gridLeft + INDEX_WIDTH / 2,
+						y + Math.max(1, (rowHeight - 8) / 2), palette.text());
+			}
 			for (int column = 0; column < COLUMN_COUNT; column++) {
 				int x = gridLeft + INDEX_WIDTH + column * cellWidth;
 				boolean selected = row == selectedRow && column == selectedColumn;
-				graphics.fill(x, y, x + cellWidth, y + rowHeight, selected ? 0xffe5f4ec : 0xffffffff);
-				graphics.outline(x, y, cellWidth, rowHeight, selected ? 0xff16825d : 0xffcbd4ce);
+				graphics.fill(x, y, x + cellWidth, y + rowHeight, selected ? palette.selected() : palette.cell());
+				if (NotesSettings.gridLines()) {
+					graphics.outline(x, y, cellWidth, rowHeight, selected ? palette.accent() : palette.border());
+				}
 				String value = FormulaEvaluator.display(cells, row, column);
 				graphics.text(font, NotesFont.literal(truncate(value, cellWidth - 8)), x + 4,
-						y + Math.max(1, (rowHeight - 8) / 2), 0xff263a31);
+						y + Math.max(1, (rowHeight - 8) / 2), palette.text());
 			}
 		}
 	}
 
-	private void drawOpenDialog(GuiGraphicsExtractor graphics) {
+	private void drawOpenDialog(GuiGraphicsExtractor graphics, NotesSettings.Palette palette) {
 		int dialogWidth = Math.min(460, panelWidth - 24);
 		int dialogHeight = Math.min(326, panelHeight - 24);
 		int left = panelLeft + (panelWidth - dialogWidth) / 2;
 		int top = panelTop + (panelHeight - dialogHeight) / 2;
-		graphics.fill(left, top, left + dialogWidth, top + dialogHeight, 0xfff7f9f7);
-		graphics.outline(left, top, dialogWidth, dialogHeight, 0xff80958a);
-		graphics.fill(left, top, left + dialogWidth, top + 30, 0xffdce8e0);
-		graphics.text(font, NotesFont.apply(Component.translatable("screen.vildoria.notes.open_title")), left + 12, top + 10, 0xff263a31);
+		graphics.fill(left, top, left + dialogWidth, top + dialogHeight, palette.cell());
+		graphics.outline(left, top, dialogWidth, dialogHeight, palette.border());
+		graphics.fill(left, top, left + dialogWidth, top + 30, palette.gridHeader());
+		graphics.text(font, NotesFont.apply(Component.translatable("screen.vildoria.notes.open_title")), left + 12, top + 10, NotesSettings.textColorValue());
 
 		int visibleFiles = Math.max(0, Math.min(FILE_LIST_LIMIT, (dialogHeight - 68) / FILE_LIST_ROW_HEIGHT));
 		if (noteFiles.isEmpty()) {
-			graphics.text(font, NotesFont.apply(Component.translatable("screen.vildoria.notes.no_files")), left + 14, top + 48, 0xff52645a);
+			graphics.text(font, NotesFont.apply(Component.translatable("screen.vildoria.notes.no_files")), left + 14, top + 48, palette.muted());
 		} else {
 			for (int index = 0; index < Math.min(noteFiles.size(), visibleFiles); index++) {
 				int y = top + 36 + index * FILE_LIST_ROW_HEIGHT;
-				graphics.fill(left + 8, y, left + dialogWidth - 8, y + FILE_LIST_ROW_HEIGHT - 2, 0xffe8eee9);
+				graphics.fill(left + 8, y, left + dialogWidth - 8, y + FILE_LIST_ROW_HEIGHT - 2, palette.panel());
 				graphics.text(font, NotesFont.literal(stripExtension(noteFiles.get(index).getFileName().toString())),
-						left + 16, y + 7, 0xff263a31);
+						left + 16, y + 7, NotesSettings.textColorValue());
 			}
 		}
 		drawButton(graphics, left + dialogWidth - 84, top + dialogHeight - 28, 72,
-				"screen.vildoria.notes.close");
+				"screen.vildoria.notes.close", palette);
 	}
 
-	private void drawButton(GuiGraphicsExtractor graphics, int x, int y, int buttonWidth, String label) {
-		graphics.fill(x, y, x + buttonWidth, y + 22, 0xffdce4df);
-		graphics.outline(x, y, buttonWidth, 22, 0xff9eaea4);
-		graphics.centeredText(font, NotesFont.apply(Component.translatable(label)), x + buttonWidth / 2, y + 7, 0xff263a31);
+	private void drawButton(GuiGraphicsExtractor graphics, int x, int y, int buttonWidth, String label, NotesSettings.Palette palette) {
+		graphics.fill(x, y, x + buttonWidth, y + 22, palette.button());
+		graphics.outline(x, y, buttonWidth, 22, palette.border());
+		graphics.centeredText(font, NotesFont.apply(Component.translatable(label)), x + buttonWidth / 2, y + 7, palette.text());
 	}
 
 	private int actionButtonX(int index) {

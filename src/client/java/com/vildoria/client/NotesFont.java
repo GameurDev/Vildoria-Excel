@@ -6,13 +6,17 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
 
 final class NotesFont {
-	private static final Identifier MONOSPACE = Identifier.fromNamespaceAndPath("minecraft", "uniform");
+	private static final Identifier[] FONTS = {
+			Identifier.fromNamespaceAndPath("minecraft", "default"),
+			Identifier.fromNamespaceAndPath("minecraft", "uniform"),
+			Identifier.fromNamespaceAndPath("minecraft", "alt")
+	};
 
 	private NotesFont() {
 	}
 
 	static Component apply(Component text) {
-		FontDescription font = new FontDescription.Resource(MONOSPACE);
+		FontDescription font = new FontDescription.Resource(FONTS[NotesSettings.font()]);
 		return text.copy().withStyle(style -> style.withFont(font));
 	}
 
